@@ -33,19 +33,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = update.effective_user
         logger.info(f"User {user.id} ({user.first_name}) started the bot")
         
-        welcome_text = f"""
-👋 Welcome {user.first_name}!
+        welcome_text = f"""👋 Welcome {user.first_name}!
 
-🔐 **Telegram Session String Generator Bot**
+🔐 Telegram Session String Generator Bot
 
 This bot helps you generate a Telethon session string for your Telegram account.
 
-⚠️ **IMPORTANT SECURITY WARNING:**
+⚠️ IMPORTANT SECURITY WARNING:
 - Never share your session string with anyone
 - It gives full access to your Telegram account
 - Only use it in your own applications
 
-📝 **How to use:**
+📝 How to use:
 1. Click /generate to start
 2. Send your API_ID
 3. Send your API_HASH
@@ -53,12 +52,12 @@ This bot helps you generate a Telethon session string for your Telegram account.
 5. Enter the verification code
 6. Get your session string!
 
-💡 **Get API credentials from:**
+💡 Get API credentials from:
 https://my.telegram.org/auth
 
-Ready? Click /generate to begin! 🚀
-"""
-        await update.message.reply_text(welcome_text, parse_mode='Markdown')
+Ready? Click /generate to begin! 🚀"""
+
+        await update.message.reply_text(welcome_text)
         logger.info(f"Sent welcome message to user {user.id}")
     except Exception as e:
         logger.error(f"Error in start command: {e}", exc_info=True)
@@ -66,17 +65,24 @@ Ready? Click /generate to begin! 🚀
 
 async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start the session generation process"""
-    user_id = update.effective_user.id
-    
-    # Reset user data
-    user_data[user_id] = {'step': 'api_id'}
-    
-    await update.message.reply_text(
-        "🔑 **Step 1/4: API ID**\n\n"
-        "Please send your API_ID (numbers only)\n\n"
-        "Get it from: https://my.telegram.org/auth",
-        parse_mode='Markdown'
-    )
+    try:
+        user_id = update.effective_user.id
+        logger.info(f"User {user_id} started generation")
+        
+        # Reset user data
+        user_data[user_id] = {'step': 'api_id'}
+        
+        message = """🔑 Step 1/4: API ID
+
+Please send your API_ID (numbers only)
+
+Get it from: https://my.telegram.org/auth"""
+        
+        await update.message.reply_text(message)
+        logger.info(f"Sent API_ID prompt to user {user_id}")
+    except Exception as e:
+        logger.error(f"Error in generate: {e}", exc_info=True)
+        await update.message.reply_text("An error occurred. Please try again with /generate")
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel the current operation"""
@@ -92,9 +98,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del user_sessions[user_id]
     
     await update.message.reply_text(
-        "❌ Operation cancelled.\n\n"
-        "Use /generate to start again.",
-        parse_mode='Markdown'
+        "❌ Operation cancelled.\n\nUse /generate to start again."
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -103,9 +107,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message_text = update.message.text
     
     if user_id not in user_data:
-        await update.message.reply_text(
-            "Please start with /generate command first!"
-        )
+        await update.message.reply_text("Please start with /generate command first!")
         return
     
     step = user_data[user_id].get('step')
@@ -119,9 +121,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             await update.message.reply_text(
                 "✅ API ID saved!\n\n"
-                "🔑 **Step 2/4: API HASH**\n\n"
-                "Please send your API_HASH",
-                parse_mode='Markdown'
+                "🔑 Step 2/4: API HASH\n\n"
+                "Please send your API_HASH"
             )
         
         elif step == 'api_hash':
@@ -131,10 +132,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             await update.message.reply_text(
                 "✅ API HASH saved!\n\n"
-                "📱 **Step 3/4: Phone Number**\n\n"
+                "📱 Step 3/4: Phone Number\n\n"
                 "Send your phone number with country code\n"
-                "Example: +919876543210",
-                parse_mode='Markdown'
+                "Example: +919876543210"
             )
         
         elif step == 'phone':
@@ -145,10 +145,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             api_id = user_data[user_id]['api_id']
             api_hash = user_data[user_id]['api_hash']
             
-            await update.message.reply_text(
-                "⏳ Connecting to Telegram...",
-                parse_mode='Markdown'
-            )
+            await update.message.reply_text("⏳ Connecting to Telegram...")
             
             client = TelegramClient(StringSession(), api_id, api_hash)
             await client.connect()
@@ -161,9 +158,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 await update.message.reply_text(
                     "✅ Code sent to your Telegram!\n\n"
-                    "🔢 **Step 4/4: Verification Code**\n\n"
-                    "Check your Telegram app and send the code here",
-                    parse_mode='Markdown'
+                    "🔢 Step 4/4: Verification Code\n\n"
+                    "Check your Telegram app and send the code here"
                 )
             except Exception as e:
                 await update.message.reply_text(
@@ -177,10 +173,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             phone = user_data[user_id]['phone']
             client = user_sessions[user_id]
             
-            await update.message.reply_text(
-                "⏳ Verifying code...",
-                parse_mode='Markdown'
-            )
+            await update.message.reply_text("⏳ Verifying code...")
             
             try:
                 await client.sign_in(phone, code)
@@ -189,25 +182,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 session_string = client.session.save()
                 
                 await update.message.reply_text(
-                    "🎉 **SUCCESS!**\n\n"
+                    "🎉 SUCCESS!\n\n"
                     "✅ Your session string has been generated!\n\n"
-                    "⚠️ **KEEP IT SECRET - Don't share with anyone!**",
-                    parse_mode='Markdown'
+                    "⚠️ KEEP IT SECRET - Don't share with anyone!"
                 )
                 
-                # Send session string in a separate message
-                await update.message.reply_text(
-                    f"`{session_string}`",
-                    parse_mode='Markdown'
-                )
+                # Send session string
+                await update.message.reply_text(f"`{session_string}`", parse_mode='Markdown')
                 
                 await update.message.reply_text(
-                    "📝 **How to use:**\n"
+                    "📝 How to use:\n"
                     "1. Copy the session string above\n"
                     "2. Add it to your Render environment as SESSION_STRING\n"
                     "3. Deploy your bot!\n\n"
-                    "Use /generate to create another session.",
-                    parse_mode='Markdown'
+                    "Use /generate to create another session."
                 )
                 
                 await cleanup_user(user_id)
@@ -215,10 +203,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except SessionPasswordNeededError:
                 user_data[user_id]['step'] = '2fa'
                 await update.message.reply_text(
-                    "🔐 **2FA Password Required**\n\n"
+                    "🔐 2FA Password Required\n\n"
                     "Your account has Two-Factor Authentication enabled.\n"
-                    "Please send your 2FA password:",
-                    parse_mode='Markdown'
+                    "Please send your 2FA password:"
                 )
             except PhoneCodeInvalidError:
                 await update.message.reply_text(
@@ -236,10 +223,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             password = message_text.strip()
             client = user_sessions[user_id]
             
-            await update.message.reply_text(
-                "⏳ Verifying password...",
-                parse_mode='Markdown'
-            )
+            await update.message.reply_text("⏳ Verifying password...")
             
             try:
                 await client.sign_in(password=password)
@@ -248,24 +232,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 session_string = client.session.save()
                 
                 await update.message.reply_text(
-                    "🎉 **SUCCESS!**\n\n"
+                    "🎉 SUCCESS!\n\n"
                     "✅ Your session string has been generated!\n\n"
-                    "⚠️ **KEEP IT SECRET - Don't share with anyone!**",
-                    parse_mode='Markdown'
+                    "⚠️ KEEP IT SECRET - Don't share with anyone!"
                 )
                 
-                await update.message.reply_text(
-                    f"`{session_string}`",
-                    parse_mode='Markdown'
-                )
+                await update.message.reply_text(f"`{session_string}`", parse_mode='Markdown')
                 
                 await update.message.reply_text(
-                    "📝 **How to use:**\n"
+                    "📝 How to use:\n"
                     "1. Copy the session string above\n"
                     "2. Add it to your Render environment as SESSION_STRING\n"
                     "3. Deploy your bot!\n\n"
-                    "Use /generate to create another session.",
-                    parse_mode='Markdown'
+                    "Use /generate to create another session."
                 )
                 
                 await cleanup_user(user_id)
@@ -282,7 +261,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ Invalid input! Please send a valid number for API_ID."
         )
     except Exception as e:
-        logger.error(f"Error in handle_message: {e}")
+        logger.error(f"Error in handle_message: {e}", exc_info=True)
         await update.message.reply_text(
             f"❌ An error occurred: {str(e)}\n\n"
             "Use /cancel to restart."
@@ -301,16 +280,15 @@ async def cleanup_user(user_id):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Help command"""
-    help_text = """
-🆘 **Help - Session String Generator Bot**
+    help_text = """🆘 Help - Session String Generator Bot
 
-**Commands:**
+Commands:
 /start - Start the bot
 /generate - Generate a new session string
 /cancel - Cancel current operation
 /help - Show this help message
 
-**Steps to generate:**
+Steps to generate:
 1. Use /generate
 2. Send API_ID (from my.telegram.org)
 3. Send API_HASH
@@ -319,15 +297,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 6. If 2FA enabled, send password
 7. Copy your session string!
 
-**Security Tips:**
+Security Tips:
 ⚠️ Never share your session string
 ⚠️ Use only in your own apps
 ⚠️ Don't send it to anyone
 
-**Need API credentials?**
-Visit: https://my.telegram.org/auth
-"""
-    await update.message.reply_text(help_text, parse_mode='Markdown')
+Need API credentials?
+Visit: https://my.telegram.org/auth"""
+
+    await update.message.reply_text(help_text)
 
 def main():
     """Start the bot"""
