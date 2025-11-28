@@ -1,11 +1,10 @@
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from telethon import TelegramClient
 from telethon.sessions import StringSession
-from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
-import asyncio
+from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError, FloodWaitError
 
 # Logging setup
 logging.basicConfig(
@@ -17,7 +16,10 @@ logger = logging.getLogger(__name__)
 # Get bot token from environment
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 if not BOT_TOKEN:
+    logger.error("BOT_TOKEN not found in environment variables!")
     raise ValueError("BOT_TOKEN must be set in environment variables")
+
+logger.info(f"Bot token found: {BOT_TOKEN[:10]}...")
 
 # Store user sessions temporarily
 user_sessions = {}
@@ -27,8 +29,11 @@ user_data = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start command handler"""
-    user = update.effective_user
-    welcome_text = f"""
+    try:
+        user = update.effective_user
+        logger.info(f"User {user.id} ({user.first_name}) started the bot")
+        
+        welcome_text = f"""
 👋 Welcome {user.first_name}!
 
 🔐 **Telegram Session String Generator Bot**
@@ -53,7 +58,11 @@ https://my.telegram.org/auth
 
 Ready? Click /generate to begin! 🚀
 """
-    await update.message.reply_text(welcome_text, parse_mode='Markdown')
+        await update.message.reply_text(welcome_text, parse_mode='Markdown')
+        logger.info(f"Sent welcome message to user {user.id}")
+    except Exception as e:
+        logger.error(f"Error in start command: {e}", exc_info=True)
+        await update.message.reply_text("An error occurred. Please try again.")
 
 async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start the session generation process"""
@@ -322,21 +331,38 @@ Visit: https://my.telegram.org/auth
 
 def main():
     """Start the bot"""
-    logger.info("Starting Session Generator Bot...")
-    
-    # Create application
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    # Add handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("generate", generate))
-    application.add_handler(CommandHandler("cancel", cancel))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # Start bot
-    logger.info("Bot is running...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    try:
+        logger.info("Starting Session Generator Bot...")
+        logger.info(f"Using bot token: {BOT_TOKEN[:15]}...")
+        
+        # Create application with proper settings
+        application = (
+            Application.builder()
+            .token(BOT_TOKEN)
+            .read_timeout(30)
+            .write_timeout(30)
+            .connect_timeout(30)
+            .pool_timeout(30)
+            .build()
+        )
+        
+        # Add handlers
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("generate", generate))
+        application.add_handler(CommandHandler("cancel", cancel))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        
+        # Start bot
+        logger.info("Bot handlers registered successfully!")
+        logger.info("Starting polling...")
+        application.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True
+        )
+    except Exception as e:
+        logger.error(f"Fatal error in main: {e}", exc_info=True)
+        raise
 
 if __name__ == '__main__':
     main()
